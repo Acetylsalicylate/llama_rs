@@ -1,14 +1,17 @@
-# Llama.rs SafeTensors Parser & Metadata Reader
+# Llama.rs SafeTensors Parser & LLM Runtime
 
-A lightweight Rust utility designed to scan, parse, and inspect `.safetensors` model files. This project serves as the foundational data-loading layer for a custom LLM runtime implementation in Rust.
+A lightweight, pure Rust LLM runtime and SafeTensors model loader designed to parse, inspect, and load Transformer-based architectures without heavy dependencies.
 
 ---
 
-## ⚠️ Current Development Status
+## 🚀 Current Development Status
 
-**At the current stage, this project only supports reading and inspecting model metadata, tensor headers, shapes, data types, and raw or F32 weight values.** 
-
-Response generation, tokenization, and model inference are **not yet implemented** and will be available in future releases.
+The project has advanced from basic metadata inspection to **full model weight loading and runtime state initialization**. It currently supports:
+- SafeTensors binary header parsing and efficient tensor slice reading.
+- Native decoding and conversion of tensor data types (`F32`, `BF16`, and `F16`) to `f32`.
+- Automatic configuration parsing from `config.json` or fallback architecture inference directly from tensor shapes.
+- Complete representation of multi-layer Transformer decoder weights (including attention projections, optional biases, SwiGLU MLP layers, and RMS normalization).
+- Pre-allocated scratchpad memory (`RunState`) featuring KV cache buffers and precomputed Rotary Position Embedding (RoPE) cosine/sine tables.
 
 ---
 
@@ -17,17 +20,19 @@ Response generation, tokenization, and model inference are **not yet implemented
 The project consists of the following components:
 
 - **`Cargo.toml`**: Project configuration and dependencies (`serde`, `serde_json`).
-- **`src/main.rs`**: Entry point that scans the local `models/` directory, iterates through `.safetensors` files, parses their structures, and prints out metadata, tensor statistics, and sample weights.
-- **`src/loader.rs`**: Core parser implementation (`SafeTensorsModel` struct and `TensorInfo`) handling binary header extraction, JSON deserialization, and tensor memory mapping / byte slicing.
+- **`src/main.rs`**: Entry point that scans the local `models/` directory, discovers `.safetensors` files, loads the model architecture and weights, initializes execution buffers, and prints detailed diagnostic summaries.
+- **`src/loader.rs`**: Core SafeTensors parser (`SafeTensorsModel` and `TensorInfo`) with precise binary header parsing and type conversion routines (`bf16_to_f32`, `f16_to_f32`).
+- **`src/model.rs`**: Transformer architecture definitions, including `ModelConfig`, `LayerWeights`, `TransformerWeights`, `Model`, and the `RunState` execution context with RoPE precomputation.
 
 ---
 
 ## Features
 
-- **SafeTensors Parsing**: Reads the 8-length little-endian header length followed by the JSON metadata header.
-- **Metadata Extraction**: Automatically extracts the global `__metadata__` map from the safetensors header.
-- **Tensor Inspection**: Inspects tensor names, data types (e.g., `F32`), shapes, and byte offsets.
-- **Weight Sampling**: Provides safe retrieval methods for raw bytes and `f32` tensor chunks.
+- **Multi-Format Weight Support**: Safely reads and converts `F32`, `BF16`, and `F16` tensor weights into clean `f32` representations.
+- **Flexible Configuration**: Reads HuggingFace `config.json` files or automatically infers model dimensions (vocab size, hidden size, attention heads, key-value heads, head dimension) from safetensors weight shapes.
+- **Optimized RunState Allocation**: Pre-allocates activation scratchpads and KV caches to avoid runtime allocations during inference.
+- **RoPE Precomputation**: Precomputes precision Rotary Position Embedding frequency tables in double precision (`f64`).
+- **Memory Diagnostics**: Reports exact RAM consumption for both model weights and runtime computation buffers.
 
 ---
 
@@ -39,8 +44,8 @@ The project consists of the following components:
 
 ### Setup & Usage
 
-1. Create a `models` folder in the root directory of the project (next to `src/` and `Cargo.toml`).
-2. Place one or more `.safetensors` model files inside the `models/` directory.
+1. Create a `models/` folder in the root directory of the project (next to `src/` and `Cargo.toml`).
+2. Place your `.safetensors` model file (and optionally its `config.json`) inside the `models/` directory (or a subdirectory).
 3. Run the project using Cargo:
 
 ```bash
@@ -52,6 +57,5 @@ cargo run
 ## Future Roadmap
 
 - [ ] Implement a lightweight Tokenizer (BPE/SentencePiece).
-- [ ] Add support for additional tensor data types (e.g., F16, BF16, quantized formats).
-- [ ] Implement core transformer layers and self-attention mechanisms.
-- [ ] **Enable text response generation and interactive inference.**
+- [ ] Implement core forward-pass operations (RMSNorm, Multi-Head Attention, SwiGLU MLP, and LM Head projection).
+- [ ] **Enable interactive text generation and sampling.**
